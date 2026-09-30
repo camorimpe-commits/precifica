@@ -1,4 +1,3 @@
-```jsx
 import {
   Calculator,
   Store,
@@ -14,4 +13,3 @@ export const TABS = [
   { id: 'reverse', label: 'Preço alvo', icon: Target },
   { id: 'saved', label: 'Salvos', icon: Bookmark },
 ]
-```
