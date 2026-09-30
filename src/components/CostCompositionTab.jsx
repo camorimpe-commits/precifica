@@ -1,4 +1,4 @@
-```jsx
+
 import { useMemo, useState } from 'react'
 
 const EMPTY_INGREDIENT = {
