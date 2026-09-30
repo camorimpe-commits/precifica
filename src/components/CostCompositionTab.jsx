@@ -1,5 +1,6 @@
+import { useEffect, useMemo, useState } from 'react'
 
-import { useMemo, useState } from 'react'
+const STORAGE_KEY = 'cost_composition_recipe'
 
 const EMPTY_INGREDIENT = {
   name: '',
@@ -12,8 +13,58 @@ const EMPTY_INGREDIENT = {
 export default function CostCompositionTab() {
   const [productName, setProductName] = useState('')
   const [yieldQty, setYieldQty] = useState('')
+  const [margin, setMargin] = useState('40')
   const [ingredients, setIngredients] = useState([])
   const [ingredient, setIngredient] = useState(EMPTY_INGREDIENT)
+  const [saved, setSaved] = useState(false)
+
+  // ============================================================
+  // CARREGAR DADOS SALVOS
+  // ============================================================
+
+  useEffect(() => {
+    try {
+      const savedData = localStorage.getItem(STORAGE_KEY)
+
+      if (!savedData) return
+
+      const data = JSON.parse(savedData)
+
+      setProductName(data.productName || '')
+      setYieldQty(data.yieldQty || '')
+      setMargin(data.margin || '40')
+      setIngredients(data.ingredients || [])
+    } catch (error) {
+      console.error('Erro ao carregar composição:', error)
+    }
+  }, [])
+
+  // ============================================================
+  // SALVAR AUTOMATICAMENTE
+  // ============================================================
+
+  useEffect(() => {
+    const data = {
+      productName,
+      yieldQty,
+      margin,
+      ingredients,
+    }
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+
+    setSaved(true)
+
+    const timer = setTimeout(() => {
+      setSaved(false)
+    }, 1200)
+
+    return () => clearTimeout(timer)
+  }, [productName, yieldQty, margin, ingredients])
+
+  // ============================================================
+  // FORMATAÇÃO DE DINHEIRO
+  // ============================================================
 
   const money = (value) =>
     Number(value || 0).toLocaleString('pt-BR', {
@@ -21,22 +72,48 @@ export default function CostCompositionTab() {
       currency: 'BRL',
     })
 
+  // ============================================================
+  // ADICIONAR INSUMO
+  // ============================================================
+
   const addIngredient = () => {
     const name = ingredient.name.trim()
     const purchaseQty = Number(ingredient.purchaseQty)
     const purchasePrice = Number(ingredient.purchasePrice)
     const usedQty = Number(ingredient.usedQty)
 
-    if (!name) return
-    if (purchaseQty <= 0) return
-    if (purchasePrice <= 0) return
-    if (usedQty <= 0) return
+    if (!name) {
+      alert('Informe o nome do insumo.')
+      return
+    }
+
+    if (purchaseQty <= 0) {
+      alert('Informe uma quantidade comprada válida.')
+      return
+    }
+
+    if (purchasePrice <= 0) {
+      alert('Informe um preço de compra válido.')
+      return
+    }
+
+    if (usedQty <= 0) {
+      alert('Informe a quantidade utilizada.')
+      return
+    }
+
+    if (usedQty > purchaseQty) {
+      alert(
+        'A quantidade utilizada não pode ser maior que a quantidade comprada.'
+      )
+      return
+    }
 
     const unitCost = purchasePrice / purchaseQty
     const usedCost = unitCost * usedQty
 
     const newIngredient = {
-      id: Date.now(),
+      id: `${Date.now()}-${Math.random()}`,
       name,
       purchaseQty,
       unit: ingredient.unit,
@@ -50,18 +127,30 @@ export default function CostCompositionTab() {
     setIngredient({ ...EMPTY_INGREDIENT })
   }
 
+  // ============================================================
+  // EXCLUIR INSUMO
+  // ============================================================
+
   const removeIngredient = (id) => {
     setIngredients((list) =>
       list.filter((item) => item.id !== id)
     )
   }
 
+  // ============================================================
+  // CUSTO TOTAL
+  // ============================================================
+
   const totalCost = useMemo(() => {
     return ingredients.reduce(
-      (total, item) => total + item.usedCost,
+      (total, item) => total + Number(item.usedCost || 0),
       0
     )
   }, [ingredients])
+
+  // ============================================================
+  // CUSTO POR UNIDADE
+  // ============================================================
 
   const costPerUnit = useMemo(() => {
     const quantity = Number(yieldQty)
@@ -71,21 +160,98 @@ export default function CostCompositionTab() {
     return totalCost / quantity
   }, [totalCost, yieldQty])
 
+  // ============================================================
+  // PREÇO DE VENDA
+  //
+  // Fórmula:
+  //
+  // Preço = Custo / (1 - Margem)
+  //
+  // Exemplo:
+  // Custo = R$ 2,00
+  // Margem = 40%
+  //
+  // 2 / (1 - 0,40)
+  // = R$ 3,33
+  // ============================================================
+
+  const salePrice = useMemo(() => {
+    const marginValue = Number(margin) / 100
+
+    if (costPerUnit <= 0) return 0
+
+    if (marginValue >= 1) return 0
+
+    return costPerUnit / (1 - marginValue)
+  }, [costPerUnit, margin])
+
+  // ============================================================
+  // LUCRO POR UNIDADE
+  // ============================================================
+
+  const profitPerUnit = useMemo(() => {
+    if (salePrice <= 0 || costPerUnit <= 0) return 0
+
+    return salePrice - costPerUnit
+  }, [salePrice, costPerUnit])
+
+  // ============================================================
+  // LUCRO TOTAL DA RECEITA
+  // ============================================================
+
+  const totalProfit = useMemo(() => {
+    const quantity = Number(yieldQty)
+
+    if (quantity <= 0 || salePrice <= 0) return 0
+
+    return profitPerUnit * quantity
+  }, [profitPerUnit, salePrice, yieldQty])
+
+  // ============================================================
+  // RECEITA BRUTA DA PRODUÇÃO
+  // ============================================================
+
+  const totalRevenue = useMemo(() => {
+    const quantity = Number(yieldQty)
+
+    if (quantity <= 0 || salePrice <= 0) return 0
+
+    return salePrice * quantity
+  }, [salePrice, yieldQty])
+
   return (
     <div className="space-y-4">
 
-      {/* CABEÇALHO DA RECEITA */}
+      {/* ======================================================
+          CABEÇALHO DA RECEITA
+      ====================================================== */}
+
       <section className="rounded-2xl bg-slate-800 p-4">
 
-        <h2 className="mb-1 text-lg font-bold text-white">
-          Custos e insumos
-        </h2>
+        <div className="flex items-start justify-between gap-3">
 
-        <p className="mb-4 text-sm text-slate-400">
-          Monte a composição do produto para descobrir o custo real.
-        </p>
+          <div>
+            <h2 className="mb-1 text-lg font-bold text-white">
+              Custos e insumos
+            </h2>
 
-        <div className="space-y-3">
+            <p className="text-sm text-slate-400">
+              Monte a composição do produto e descubra o custo e
+              preço de venda.
+            </p>
+          </div>
+
+          {saved && (
+            <span className="shrink-0 rounded-full bg-profit/20 px-3 py-1 text-xs font-semibold text-profit">
+              ✓ Salvo
+            </span>
+          )}
+
+        </div>
+
+        <div className="mt-4 space-y-3">
+
+          {/* PRODUTO */}
 
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-300">
@@ -99,6 +265,8 @@ export default function CostCompositionTab() {
               className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-3 text-white outline-none focus:border-profit"
             />
           </div>
+
+          {/* RENDIMENTO */}
 
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-300">
@@ -119,10 +287,45 @@ export default function CostCompositionTab() {
             </p>
           </div>
 
+          {/* MARGEM */}
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-300">
+              Margem de lucro desejada
+            </label>
+
+            <div className="relative">
+
+              <input
+                type="number"
+                min="0"
+                max="99"
+                step="1"
+                value={margin}
+                onChange={(e) => setMargin(e.target.value)}
+                placeholder="40"
+                className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-3 pr-10 text-white outline-none focus:border-profit"
+              />
+
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                %
+              </span>
+
+            </div>
+
+            <p className="mt-1 text-xs text-slate-500">
+              Percentual de lucro considerado na formação do preço.
+            </p>
+          </div>
+
         </div>
+
       </section>
 
-      {/* NOVO INSUMO */}
+      {/* ======================================================
+          NOVO INSUMO
+      ====================================================== */}
+
       <section className="rounded-2xl bg-slate-800 p-4">
 
         <h2 className="mb-3 text-lg font-bold text-white">
@@ -132,6 +335,7 @@ export default function CostCompositionTab() {
         <div className="space-y-3">
 
           {/* NOME */}
+
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-300">
               Nome do insumo
@@ -150,7 +354,8 @@ export default function CostCompositionTab() {
             />
           </div>
 
-          {/* QUANTIDADE COMPRADA + UNIDADE */}
+          {/* QUANTIDADE + UNIDADE */}
+
           <div className="grid grid-cols-2 gap-3">
 
             <div>
@@ -200,6 +405,7 @@ export default function CostCompositionTab() {
           </div>
 
           {/* PREÇO + UTILIZAÇÃO */}
+
           <div className="grid grid-cols-2 gap-3">
 
             <div>
@@ -255,9 +461,13 @@ export default function CostCompositionTab() {
           </button>
 
         </div>
+
       </section>
 
-      {/* INSUMOS ADICIONADOS */}
+      {/* ======================================================
+          INSUMOS ADICIONADOS
+      ====================================================== */}
+
       {ingredients.length > 0 && (
         <section className="rounded-2xl bg-slate-800 p-4">
 
@@ -268,6 +478,7 @@ export default function CostCompositionTab() {
           <div className="space-y-3">
 
             {ingredients.map((item) => (
+
               <div
                 key={item.id}
                 className="rounded-xl border border-slate-700 bg-slate-900 p-3"
@@ -315,6 +526,7 @@ export default function CostCompositionTab() {
                 </div>
 
               </div>
+
             ))}
 
           </div>
@@ -322,40 +534,165 @@ export default function CostCompositionTab() {
         </section>
       )}
 
-      {/* RESULTADO */}
+      {/* ======================================================
+          RESUMO DE CUSTOS
+      ====================================================== */}
+
+      <section className="rounded-2xl bg-slate-800 p-5">
+
+        <h2 className="mb-4 text-lg font-bold text-white">
+          Resumo de custos
+        </h2>
+
+        <div className="space-y-3">
+
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-slate-400">
+              Custo total da receita
+            </span>
+
+            <strong className="text-white">
+              {money(totalCost)}
+            </strong>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-slate-400">
+              Rendimento
+            </span>
+
+            <strong className="text-white">
+              {Number(yieldQty) > 0 ? `${yieldQty} unidades` : '—'}
+            </strong>
+          </div>
+
+          <div className="flex items-center justify-between border-t border-slate-700 pt-3">
+
+            <span className="font-semibold text-slate-300">
+              Custo por unidade
+            </span>
+
+            <strong className="text-xl text-profit">
+              {money(costPerUnit)}
+            </strong>
+
+          </div>
+
+        </div>
+
+      </section>
+
+      {/* ======================================================
+          PREÇO DE VENDA
+      ====================================================== */}
+
       <section className="rounded-2xl bg-profit p-5 text-ink">
 
         <p className="text-sm font-semibold opacity-80">
-          {productName || 'Produto'}
+          PREÇO DE VENDA SUGERIDO
         </p>
 
-        <p className="mt-1 text-3xl font-extrabold">
-          {money(totalCost)}
+        <p className="mt-1 text-4xl font-extrabold">
+          {money(salePrice)}
         </p>
 
-        <p className="text-sm font-medium opacity-80">
-          Custo total dos insumos
+        <p className="mt-1 text-sm font-medium opacity-80">
+          por unidade
         </p>
 
-        {Number(yieldQty) > 0 && (
-          <div className="mt-4 border-t border-ink/20 pt-4">
+        <div className="mt-5 grid grid-cols-2 gap-3 border-t border-ink/20 pt-4">
 
-            <p className="text-sm font-medium opacity-80">
-              Custo por unidade
+          <div>
+
+            <p className="text-xs font-medium opacity-70">
+              Custo unitário
             </p>
 
-            <p className="text-2xl font-extrabold">
+            <p className="text-lg font-bold">
               {money(costPerUnit)}
             </p>
 
-            <p className="mt-1 text-xs opacity-70">
-              Rendimento: {yieldQty} unidades
+          </div>
+
+          <div>
+
+            <p className="text-xs font-medium opacity-70">
+              Margem
+            </p>
+
+            <p className="text-lg font-bold">
+              {Number(margin || 0).toFixed(0)}%
             </p>
 
           </div>
-        )}
+
+          <div>
+
+            <p className="text-xs font-medium opacity-70">
+              Lucro por unidade
+            </p>
+
+            <p className="text-lg font-bold">
+              {money(profitPerUnit)}
+            </p>
+
+          </div>
+
+          <div>
+
+            <p className="text-xs font-medium opacity-70">
+              Receita da produção
+            </p>
+
+            <p className="text-lg font-bold">
+              {money(totalRevenue)}
+            </p>
+
+          </div>
+
+        </div>
 
       </section>
+
+      {/* ======================================================
+          LUCRO TOTAL
+      ====================================================== */}
+
+      {Number(yieldQty) > 0 && salePrice > 0 && (
+
+        <section className="rounded-2xl border border-slate-700 bg-slate-800 p-5">
+
+          <div className="flex items-center justify-between">
+
+            <div>
+
+              <p className="text-sm text-slate-400">
+                Lucro estimado da receita
+              </p>
+
+              <p className="mt-1 text-2xl font-extrabold text-white">
+                {money(totalProfit)}
+              </p>
+
+            </div>
+
+            <div className="text-right">
+
+              <p className="text-xs text-slate-500">
+                Venda de {yieldQty} unidades
+              </p>
+
+              <p className="text-xs text-slate-500">
+                a {money(salePrice)} cada
+              </p>
+
+            </div>
+
+          </div>
+
+        </section>
+
+      )}
 
     </div>
   )
