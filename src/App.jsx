@@ -1,3 +1,4 @@
+import CostCompositionTab from './components/CostCompositionTab'
 import { useEffect, useRef, useState } from 'react'
 import BottomNav from './components/BottomNav'
 import CalculatorTab from './components/CalculatorTab'
@@ -13,6 +14,7 @@ const STORAGE_KEY = 'precifica_products'
 
 const TITLES = {
   calculator: 'Calculadora de preço',
+  costs: 'Custos e insumos',
   channels: 'Preço por canal de venda',
   reverse: 'Preço alvo',
   saved: 'Produtos salvos',
