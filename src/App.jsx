@@ -79,6 +79,9 @@ export default function App() {
         {activeTab === 'calculator' && (
           <CalculatorTab form={form} result={result} setField={setField} onSave={handleSave} onReset={reset} />
         )}
+        {activeTab === 'costs' && (
+          <CostCompositionTab />
+        )}
         {activeTab === 'channels' && <ChannelsTab params={params} result={result} />}
         {activeTab === 'reverse' && <ReverseTab params={params} result={result} />}
         {activeTab === 'saved' && <SavedTab products={savedProducts} onLoad={handleLoad} onDelete={handleDelete} />}
